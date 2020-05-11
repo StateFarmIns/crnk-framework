@@ -1,10 +1,19 @@
 package io.crnk.core.engine.internal.document.mapper;
 
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.crnk.core.engine.document.Document;
@@ -15,7 +24,9 @@ import io.crnk.core.engine.document.ResourceIdentifier;
 import io.crnk.core.engine.query.QueryAdapter;
 import io.crnk.core.mock.models.LazyTask;
 import io.crnk.core.mock.models.Project;
+import io.crnk.core.mock.models.Schedule;
 import io.crnk.core.mock.models.Task;
+import io.crnk.core.queryspec.PathSpec;
 import io.crnk.core.queryspec.QuerySpec;
 import io.crnk.core.queryspec.internal.QuerySpecAdapter;
 import io.crnk.core.repository.response.JsonApiResponse;
@@ -187,6 +198,90 @@ public class DocumentMapperTest extends AbstractDocumentMapperTest {
 		String json = writer.writeValueAsString(resource);
 		Assert.assertFalse(json.contains("\"id\""));
 	}
+
+	@Test
+	public void testJsonIncludeNonEmptyIgnoresNull() throws JsonProcessingException {
+		// note that desc and followup project make use of @JsonInclude.Include.NON_EMPTY
+		Schedule schedule = new Schedule();
+		schedule.setDesc(null);
+		schedule.setFollowupProject(null);
+
+		QuerySpec querySpec = new QuerySpec(Project.class);
+		querySpec.includeRelation(PathSpec.of("followupProject"));
+		QuerySpecAdapter queryAdapter = (QuerySpecAdapter) toAdapter(querySpec);
+
+		Document document = mapper.toDocument(toResponse(schedule), queryAdapter, mappingConfig).get();
+		Resource resource = document.getSingleData().get();
+
+		Assert.assertFalse(resource.getAttributes().containsKey("description"));
+		Assert.assertFalse(resource.getRelationships().containsKey("followup"));
+	}
+
+
+	@Test
+	public void testJsonIncludeNonEmptyIgnoresEmptyList() throws JsonProcessingException {
+		// makes use of @JsonInclude.Include.NON_EMPTY
+		Schedule schedule = new Schedule();
+		schedule.setKeywords(Collections.emptyList());
+		schedule.setTasks(new ArrayList<>());
+
+		QuerySpec querySpec = new QuerySpec(Project.class);
+		querySpec.includeRelation(PathSpec.of("tasks"));
+		QuerySpecAdapter queryAdapter = (QuerySpecAdapter) toAdapter(querySpec);
+
+		Document document = mapper.toDocument(toResponse(schedule), queryAdapter, mappingConfig).get();
+		Resource resource = document.getSingleData().get();
+
+		Assert.assertFalse(resource.getAttributes().containsKey("keywords"));
+		Assert.assertFalse(resource.getRelationships().containsKey("tasks"));
+	}
+
+	@Test
+	public void testJsonIncludeNonEmptyWritesNonEmpty() throws JsonProcessingException {
+		Project project = new Project();
+		project.setId(12L);
+
+		// note that desc and followup project make use of @JsonInclude.Include.NON_EMPTY
+		Schedule schedule = new Schedule();
+		schedule.setDesc("Hello");
+		schedule.setFollowupProject(project);
+
+		QuerySpec querySpec = new QuerySpec(Project.class);
+		querySpec.includeRelation(PathSpec.of("followupProject"));
+		QuerySpecAdapter queryAdapter = (QuerySpecAdapter) toAdapter(querySpec);
+
+		Document document = mapper.toDocument(toResponse(schedule), queryAdapter, mappingConfig).get();
+		Resource resource = document.getSingleData().get();
+
+		Assert.assertTrue(resource.getAttributes().containsKey("description"));
+		Assert.assertTrue(resource.getRelationships().containsKey("followup"));
+	}
+
+	@Test
+	public void testOptionalNotSerializedIfEmpty() {
+		Schedule schedule = new Schedule();
+		schedule.setDueDate(Optional.empty());
+
+		QuerySpecAdapter queryAdapter = (QuerySpecAdapter) toAdapter(new QuerySpec(Project.class));
+		Document document = mapper.toDocument(toResponse(schedule), queryAdapter, mappingConfig).get();
+		Resource resource = document.getSingleData().get();
+		Assert.assertFalse(resource.getAttributes().containsKey("dueDate"));
+	}
+
+	@Test
+	public void testOptionalSerializedIfSet() {
+		Schedule schedule = new Schedule();
+		schedule.setDueDate(Optional.of(OffsetDateTime.now()));
+
+		QuerySpecAdapter queryAdapter = (QuerySpecAdapter) toAdapter(new QuerySpec(Project.class));
+		Document document = mapper.toDocument(toResponse(schedule), queryAdapter, mappingConfig).get();
+		Resource resource = document.getSingleData().get();
+
+		Assert.assertTrue(resource.getAttributes().containsKey("dueDate"));
+		JsonNode node = resource.getAttributes().get("dueDate");
+		Assert.assertTrue(node.asText().length() > 0);
+	}
+
 
 	@Test
 	public void testCompactModeWithNullData() {
@@ -538,6 +633,27 @@ public class DocumentMapperTest extends AbstractDocumentMapperTest {
 		Assert.assertEquals("tasks", resource.getType());
 		Assert.assertNull(resource.getAttributes().get("name"));
 		Assert.assertNull(resource.getRelationships().get("project"));
+		Assert.assertEquals("sample category", resource.getAttributes().get("category").asText());
+	}
+
+	@Test
+	public void testAttributesOrdering() {
+		Task task = createTask(3, "sample task");
+		task.setCategory("sample category");
+		task.setName("sample name");
+		JsonApiResponse response = new JsonApiResponse();
+		response.setEntity(task);
+
+		Document document = mapper.toDocument(response, createAdapter(Task.class), mappingConfig).get();
+		Resource resource = document.getSingleData().get();
+		Assert.assertEquals("3", resource.getId());
+		Assert.assertEquals("tasks", resource.getType());
+		// check if the attributes are returned in alphabetical order as per the JsonPropertyOrder on Task
+		Assert.assertTrue(resource.getAttributes() instanceof LinkedHashMap);
+		Assert.assertEquals(resource.getAttributes().keySet(),
+				Stream.of("category", "completed", "deleted", "name", "otherTasks", "readOnlyValue", "status")
+						.collect(Collectors.toCollection(LinkedHashSet::new)));
+		Assert.assertEquals("sample name", resource.getAttributes().get("name").asText());
 		Assert.assertEquals("sample category", resource.getAttributes().get("category").asText());
 	}
 

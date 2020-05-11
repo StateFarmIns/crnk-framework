@@ -480,15 +480,38 @@ See http://jsonapi.org/format/#document-links for more information about linking
 	}
 ----
 
-By default links are serialized as:
+Links can be represented either as either simple String:
 
+----
+"http://example.com/articles/1/relationships/comments",
+----
+
+or as structured objects of type `Link` with
+`href`, `rel`, `anchor`, `params`, `describedBy` and `meta` fields:
+
+----
+"links": {
+	"self": "http://example.com/articles/1/relationships/comments",
+		"related": {
+			"href": "http://example.com/articles/1/comments",
+			"describedby": "http://example.com/schemas/article-comments",
+			"meta": {
+				"count": 10
+			}
+		}
+	}
+}
+----
+
+`LinksInformation` objects can hold either type. With `DefaultLink` there is a default implementation
+of  `Link` available. By default simple strings will be serialized as such:
 ----
 "links": {
   "self": "http://example.com/posts"
 }
 ----
 
-With `crnk.config.serialize.object.links=true` links get serialized as:
+This can be changed by setting the property `crnk.config.serialize.object.links=true`:
 
 ----
 "links": {
@@ -497,6 +520,41 @@ With `crnk.config.serialize.object.links=true` links get serialized as:
   }
 }
 ----
+
+There are a variety of interfaces for built-in link types:
+
+- `SelfLinksInformation`
+- `RelatedLinksInformation`
+- `PagingLinksInformation`
+
+Such links will be populated automatically by Crnk if not specified otherwise.
+It is important to highlight that many links can and are derived from the `self` link.
+For example, if the `self` link is customized, all relationship links will be adjusted
+accordingly.
+
+TIP: If you have use cases where the link can be derived from the `self` link, it can
+  be the easiest solution to implement that logic directly in the getter:
+
+----
+	public static class ProjectLinks implements LinksInformation, SelfLinksInformation {
+
+		private String value;
+
+		private String self;
+
+		public String getValue() {
+			if(value == null && self != null){
+				return self + "/foo";
+			}
+			return value;
+		}
+		...
+	}
+----
+
+TIP: `CrnkBoot.getUrlBuilder()` gives access to the `UrlBuilder` class that allows the construction
+  of URLs from resources. Ìt is also, for example, defined as Spring bean and can be
+  injected into any class.
 
 
 anchor:jsonApiField[]
@@ -552,6 +610,9 @@ Crnk comes with (partial) support for Jackson annotations. Currently supported a
 | `@JsonProperty.access`
 | Specifies whether an object can be read and/or written.
 
+| `JsonInclude.Include.NON_EMPTY` and `JsonInclude.Include.NON_NULL`
+| Specifies whether null and empty values are omitted from serialization.
+
 | `@JsonAnyGetter` and `@JsonAnySetter`
 | To map dynamic data structures to JSON. For an example have a look at
   https://github.com/crnk-project/crnk-example/blob/master/crnk-example-service/src/main/java/io/crnk/example/service/model/PersonEntity.java[PersonEntity]
@@ -563,6 +624,22 @@ Support for more annotations will be added in the future. PRs welcomed.
 
 
 anchor:nested_resources[]
+
+## Optional values
+
+Crnk comes with support for `java.util.Optional`. Serialization of such fields is omitted if no value is present.
+For this to work properly, the `Jdk8Module`` module must be registered with Jackson. It is available from:
+
+----
+	<dependency>
+		<groupId>com.fasterxml.jackson.datatype</groupId>
+		<artifactId>jackson-datatype-jdk8</artifactId>
+		<version>${JACKSON_VERSION}</version>
+	</dependency>
+----
+
+More information can be found in https://www.baeldung.com/jackson-optional.
+
 
 ## Nested Resources
 

@@ -3,6 +3,7 @@ package io.crnk.test.mock.models;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -58,11 +59,13 @@ public class PrimitiveAttributeResource {
 
 	private Object objectValue;
 
-	private Map<ScheduleStatus, String> mapValueWithEnumKey;
+	private Map<TaskStatus, String> mapValueWithEnumKey;
 
-	private Map<String, List<String>> mapValueWithListValue;
+	private Map<Long, List<String>> mapValueWithListValue;
 
 	private Map<String, Set<String>> mapValueWithSetValue;
+
+	private Optional<String> optionalValue = Optional.empty();
 
 	public Long getId() {
 		return id;
@@ -70,6 +73,14 @@ public class PrimitiveAttributeResource {
 
 	public void setId(Long id) {
 		this.id = id;
+	}
+
+	public Optional<String> getOptionalValue() {
+		return optionalValue;
+	}
+
+	public void setOptionalValue(Optional<String> optionalValue) {
+		this.optionalValue = optionalValue;
 	}
 
 	public Map<String, Set<String>> getMapValueWithSetValue() {
@@ -80,19 +91,19 @@ public class PrimitiveAttributeResource {
 		this.mapValueWithSetValue = mapValueWithSetValue;
 	}
 
-	public Map<ScheduleStatus, String> getMapValueWithEnumKey() {
+	public Map<TaskStatus, String> getMapValueWithEnumKey() {
 		return mapValueWithEnumKey;
 	}
 
-	public void setMapValueWithEnumKey(Map<ScheduleStatus, String> mapValueWithEnumKey) {
+	public void setMapValueWithEnumKey(Map<TaskStatus, String> mapValueWithEnumKey) {
 		this.mapValueWithEnumKey = mapValueWithEnumKey;
 	}
 
-	public Map<String, List<String>> getMapValueWithListValue() {
+	public Map<Long, List<String>> getMapValueWithListValue() {
 		return mapValueWithListValue;
 	}
 
-	public void setMapValueWithListValue(Map<String, List<String>> mapValueWithListValue) {
+	public void setMapValueWithListValue(Map<Long, List<String>> mapValueWithListValue) {
 		this.mapValueWithListValue = mapValueWithListValue;
 	}
 
